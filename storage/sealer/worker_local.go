@@ -42,6 +42,8 @@ type WorkerConfig struct {
 	// with the local worker.
 	IgnoreResourceFiltering bool
 
+	MemPhysical uint64
+
 	MaxParallelChallengeReads int           // 0 = no limit
 	ChallengeReadTimeout      time.Duration // 0 = no timeout
 }
@@ -60,6 +62,8 @@ type LocalWorker struct {
 	envLookup  EnvFunc
 
 	name string
+
+	memPhysical uint64
 
 	// see equivalent field on WorkerConfig.
 	ignoreResources bool
@@ -84,11 +88,12 @@ func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, envLookup EnvFunc,
 	}
 
 	w := &LocalWorker{
-		storage:    store,
-		localStore: local,
-		sindex:     sindex,
-		ret:        ret,
-		name:       wcfg.Name,
+		storage:     store,
+		localStore:  local,
+		sindex:      sindex,
+		ret:         ret,
+		name:        wcfg.Name,
+		memPhysical: wcfg.MemPhysical,
 
 		ct: &workerCallTracker{
 			st: cst,
@@ -796,10 +801,10 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		log.Errorf("getting gpu devices failed: %+v", err)
 	}
 
-	memPhysical, memUsed, memSwap, memSwapUsed, err := l.memInfo()
-	if err != nil {
-		return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
-	}
+	//memPhysical, memUsed, memSwap, memSwapUsed, err := l.memInfo()
+	//if err != nil {
+	//	return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
+	//}
 
 	resEnv, err := storiface.ParseResourceEnv(func(key, def string) (string, bool) {
 		return l.envLookup(key)
@@ -812,10 +817,10 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		Hostname:        l.name,
 		IgnoreResources: l.ignoreResources,
 		Resources: storiface.WorkerResources{
-			MemPhysical: memPhysical,
-			MemUsed:     memUsed,
-			MemSwap:     memSwap,
-			MemSwapUsed: memSwapUsed,
+			MemPhysical: l.memPhysical,
+			MemUsed:     0,
+			MemSwap:     0,
+			MemSwapUsed: 0,
 			CPUs:        uint64(runtime.NumCPU()),
 			GPUs:        gpus,
 			Resources:   resEnv,

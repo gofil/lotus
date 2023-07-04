@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/docker/go-units"
 	"net"
 	"net/http"
 	"os"
@@ -157,6 +158,10 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:   "address",
 			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:  "mem-size",
+			Value: "1TiB",
 		},
 		&cli.BoolFlag{
 			Name:    "no-local-storage",
@@ -558,6 +563,11 @@ var runCmd = &cli.Command{
 
 		wsts := statestore.New(namespace.Wrap(ds, modules.WorkerCallsPrefix))
 
+		memSize, err := units.RAMInBytes(cctx.String("mem-size"))
+		if err != nil {
+			return err
+		}
+
 		workerApi := &sealworker.Worker{
 			LocalWorker: sealer.NewLocalWorker(sealer.WorkerConfig{
 				TaskTypes:                 taskTypes,
@@ -565,6 +575,7 @@ var runCmd = &cli.Command{
 				MaxParallelChallengeReads: cctx.Int("post-parallel-reads"),
 				ChallengeReadTimeout:      cctx.Duration("post-read-timeout"),
 				Name:                      cctx.String("name"),
+				MemPhysical:               uint64(memSize),
 			}, remote, localStore, nodeApi, nodeApi, wsts),
 			LocalStore: localStore,
 			Storage:    lr,
