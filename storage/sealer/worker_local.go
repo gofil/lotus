@@ -44,6 +44,8 @@ type WorkerConfig struct {
 
 	MemPhysical uint64
 
+	KeepUnsealed bool
+
 	MaxParallelChallengeReads int           // 0 = no limit
 	ChallengeReadTimeout      time.Duration // 0 = no timeout
 }
@@ -64,6 +66,8 @@ type LocalWorker struct {
 	name string
 
 	memPhysical uint64
+
+	keepUnsealed bool
 
 	// see equivalent field on WorkerConfig.
 	ignoreResources bool
@@ -88,12 +92,13 @@ func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, envLookup EnvFunc,
 	}
 
 	w := &LocalWorker{
-		storage:     store,
-		localStore:  local,
-		sindex:      sindex,
-		ret:         ret,
-		name:        wcfg.Name,
-		memPhysical: wcfg.MemPhysical,
+		storage:      store,
+		localStore:   local,
+		sindex:       sindex,
+		ret:          ret,
+		name:         wcfg.Name,
+		memPhysical:  wcfg.MemPhysical,
+		keepUnsealed: wcfg.KeepUnsealed,
 
 		ct: &workerCallTracker{
 			st: cst,
@@ -519,11 +524,17 @@ func (l *LocalWorker) ReleaseUnsealed(ctx context.Context, sector storiface.Sect
 			return nil, xerrors.Errorf("finalizing sector: %w", err)
 		}
 
-		//if len(keepUnsealed) == 0 {
-		if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true, nil); err != nil {
-			return nil, xerrors.Errorf("removing unsealed data: %w", err)
+		if l.keepUnsealed {
+			if len(keepUnsealed) == 0 {
+				if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true, nil); err != nil {
+					return nil, xerrors.Errorf("removing unsealed data: %w", err)
+				}
+			}
+		} else {
+			if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true, nil); err != nil {
+				return nil, xerrors.Errorf("removing unsealed data: %w", err)
+			}
 		}
-		//}
 
 		return nil, err
 	})

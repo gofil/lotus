@@ -164,6 +164,10 @@ var runCmd = &cli.Command{
 			Value: "1TiB",
 		},
 		&cli.BoolFlag{
+			Name:  "keep-unsealed",
+			Value: false,
+		},
+		&cli.BoolFlag{
 			Name:    "no-local-storage",
 			Usage:   "don't use storageminer repo for sector storage",
 			EnvVars: []string{"LOTUS_WORKER_NO_LOCAL_STORAGE"},
@@ -576,6 +580,7 @@ var runCmd = &cli.Command{
 				ChallengeReadTimeout:      cctx.Duration("post-read-timeout"),
 				Name:                      cctx.String("name"),
 				MemPhysical:               uint64(memSize),
+				KeepUnsealed:              cctx.Bool("keep-unsealed"),
 			}, remote, localStore, nodeApi, nodeApi, wsts),
 			LocalStore: localStore,
 			Storage:    lr,
