@@ -205,6 +205,41 @@ Default value: 100.`,
 representation, e.g. 1m, 5m, 1h.
 Default value: 1 minute.`,
 		},
+		{
+			Name: "MinioEndpoint",
+			Type: "string",
+
+			Comment: `The endpoint for minio
+representation, http://10.0.10.1:9000`,
+		},
+		{
+			Name: "MinioBucket",
+			Type: "string",
+
+			Comment: `The bucket by minio
+representation, car`,
+		},
+		{
+			Name: "MinioAccessKeyID",
+			Type: "string",
+
+			Comment: `The access key id by minio
+representation, admin`,
+		},
+		{
+			Name: "MinioSecretAccessKey",
+			Type: "string",
+
+			Comment: `The secret access key by minio
+representation, 123456`,
+		},
+		{
+			Name: "MinioUseSsl",
+			Type: "bool",
+
+			Comment: `The ssl by minio
+representation, false`,
+		},
 	},
 	"DealmakingConfig": []DocField{
 		{

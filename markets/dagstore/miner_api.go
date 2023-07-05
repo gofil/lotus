@@ -2,6 +2,7 @@ package dagstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ipfs/go-cid"
@@ -13,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/minio/minio-go/v6"
 )
 
 //go:generate go run github.com/golang/mock/mockgen -destination=mocks/mock_lotus_accessor.go -package=mock_dagstore . MinerAPI
@@ -30,37 +32,81 @@ type SectorAccessor interface {
 	UnsealSectorAt(ctx context.Context, sectorID abi.SectorNumber, pieceOffset abi.UnpaddedPieceSize, length abi.UnpaddedPieceSize) (mount.Reader, error)
 }
 
+type MinioConfig struct {
+	MinioEndpoint        string
+	MinioBucket          string
+	MinioAccessKeyID     string
+	MinioSecretAccessKey string
+	MinioUseSsl          bool
+}
+
 type minerAPI struct {
 	pieceStore     piecestore.PieceStore
 	sa             SectorAccessor
 	throttle       throttle.Throttler
 	unsealThrottle throttle.Throttler
 	readyMgr       *shared.ReadyManager
+
+	minioClient *minio.Client
+	minioBucket string
 }
 
 var _ MinerAPI = (*minerAPI)(nil)
 
-func NewMinerAPI(store piecestore.PieceStore, sa SectorAccessor, concurrency int, unsealConcurrency int) MinerAPI {
+func NewMinerAPI(store piecestore.PieceStore, sa SectorAccessor, concurrency int, unsealConcurrency int, minioConfig MinioConfig) (MinerAPI, error) {
 	var unsealThrottle throttle.Throttler
 	if unsealConcurrency == 0 {
 		unsealThrottle = throttle.Noop()
 	} else {
 		unsealThrottle = throttle.Fixed(unsealConcurrency)
 	}
+
+	minioClient, err := minio.New(minioConfig.MinioEndpoint, minioConfig.MinioAccessKeyID, minioConfig.MinioSecretAccessKey, minioConfig.MinioUseSsl)
+	if err != nil {
+		log.Warnf("minio err: %s", err.Error())
+		return nil, err
+	}
+
+	bucketExists, err := minioClient.BucketExists(minioConfig.MinioBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	if !bucketExists {
+		return nil, errors.New("minio bucket does not exist")
+	}
+
 	return &minerAPI{
 		pieceStore:     store,
 		sa:             sa,
 		throttle:       throttle.Fixed(concurrency),
 		unsealThrottle: unsealThrottle,
 		readyMgr:       shared.NewReadyManager(),
-	}
+		minioClient:    minioClient,
+		minioBucket:    minioConfig.MinioBucket,
+	}, nil
 }
 
 func (m *minerAPI) Start(_ context.Context) error {
 	return m.readyMgr.FireReady(nil)
 }
 
+func (m *minerAPI) minioExistsCar(pieceCid cid.Cid) (bool, error) {
+	opts := minio.StatObjectOptions{}
+	oi, err := m.minioClient.StatObject(m.minioBucket, fmt.Sprintf("%s.car", pieceCid.String()), opts)
+	if err != nil {
+		return false, err
+	}
+	log.Infof("minio car size: %d", oi.Size)
+	return true, nil
+}
+
 func (m *minerAPI) IsUnsealed(ctx context.Context, pieceCid cid.Cid) (bool, error) {
+
+	if exists, _ := m.minioExistsCar(pieceCid); exists {
+		return exists, nil
+	}
+
 	err := m.readyMgr.AwaitReady()
 	if err != nil {
 		return false, xerrors.Errorf("failed while waiting for accessor to start: %w", err)
@@ -109,6 +155,21 @@ func (m *minerAPI) IsUnsealed(ctx context.Context, pieceCid cid.Cid) (bool, erro
 }
 
 func (m *minerAPI) FetchUnsealedPiece(ctx context.Context, pieceCid cid.Cid) (mount.Reader, error) {
+
+	if exists, _ := m.minioExistsCar(pieceCid); exists {
+		opts := minio.GetObjectOptions{}
+		object, err := m.minioClient.GetObject(m.minioBucket, fmt.Sprintf("%s.car", pieceCid.String()), opts)
+		if err != nil {
+			return nil, err
+		}
+		var data []byte
+		if _, err = object.Read(data); err != nil {
+			return nil, err
+		}
+		mountData := mount.BytesMount{Bytes: data}
+		return mountData.Fetch(ctx)
+	}
+
 	err := m.readyMgr.AwaitReady()
 	if err != nil {
 		return nil, err

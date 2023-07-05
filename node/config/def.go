@@ -264,6 +264,11 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxConcurrencyStorageCalls: 100,
 			MaxConcurrentUnseals:       5,
 			GCInterval:                 Duration(1 * time.Minute),
+			MinioEndpoint:              "http://10.0.10.1:9000",
+			MinioBucket:                "car",
+			MinioAccessKeyID:           "admin",
+			MinioSecretAccessKey:       "123456",
+			MinioUseSsl:                false,
 		},
 	}
 

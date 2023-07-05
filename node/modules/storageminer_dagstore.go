@@ -36,7 +36,18 @@ func NewMinerAPI(cfg config.DAGStoreConfig) func(fx.Lifecycle, repo.LockedRepo, 
 			}
 		}
 
-		mountApi := mdagstore.NewMinerAPI(pieceStore, sa, cfg.MaxConcurrencyStorageCalls, cfg.MaxConcurrentUnseals)
+		minioConfig := mdagstore.MinioConfig{
+			MinioEndpoint:        cfg.MinioEndpoint,
+			MinioBucket:          cfg.MinioBucket,
+			MinioAccessKeyID:     cfg.MinioAccessKeyID,
+			MinioSecretAccessKey: cfg.MinioSecretAccessKey,
+			MinioUseSsl:          cfg.MinioUseSsl,
+		}
+
+		mountApi, err := mdagstore.NewMinerAPI(pieceStore, sa, cfg.MaxConcurrencyStorageCalls, cfg.MaxConcurrentUnseals, minioConfig)
+		if err != nil {
+			return nil, err
+		}
 		ready := make(chan error, 1)
 		pieceStore.OnReady(func(err error) {
 			ready <- err

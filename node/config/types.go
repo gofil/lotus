@@ -100,6 +100,26 @@ type DAGStoreConfig struct {
 	// representation, e.g. 1m, 5m, 1h.
 	// Default value: 1 minute.
 	GCInterval Duration
+
+	// The endpoint for minio
+	// representation, http://10.0.10.1:9000
+	MinioEndpoint string
+
+	// The bucket by minio
+	// representation, car
+	MinioBucket string
+
+	// The access key id by minio
+	// representation, admin
+	MinioAccessKeyID string
+
+	// The secret access key by minio
+	// representation, 123456
+	MinioSecretAccessKey string
+
+	// The ssl by minio
+	// representation, false
+	MinioUseSsl bool
 }
 
 type MinerSubsystemConfig struct {
