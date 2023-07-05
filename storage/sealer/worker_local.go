@@ -817,6 +817,14 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 	//	return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
 	//}
 
+	if l.memPhysical == 0 {
+		memPhysical, _, _, _, err := l.memInfo()
+		if err != nil {
+			return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
+		}
+		l.memPhysical = memPhysical
+	}
+
 	resEnv, err := storiface.ParseResourceEnv(func(key, def string) (string, bool) {
 		return l.envLookup(key)
 	})
